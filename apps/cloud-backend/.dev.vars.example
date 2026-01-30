@@ -1,0 +1,27 @@
+# Variables de desarrollo para Cloudflare Workers
+# Copia este archivo y rellena con TUS credenciales
+
+# WhatsApp Cloud API (developers.facebook.com)
+WHATSAPP_TOKEN=tu-whatsapp-access-token
+WHATSAPP_VERIFY_TOKEN=tu-verify-token
+WHATSAPP_PHONE_ID=tu-phone-number-id
+
+# Tu número de teléfono (admin)
+ADMIN_PHONE=+34XXXXXXXXX
+
+# Groq API (console.groq.com)
+GROQ_API_KEY=tu-groq-api-key
+
+# Turso DB (turso.tech)
+TURSO_URL=libsql://tu-db.turso.io
+TURSO_AUTH_TOKEN=tu-turso-token
+
+# Upstash Redis (upstash.com)
+UPSTASH_REDIS_URL=https://tu-redis.upstash.io
+UPSTASH_REDIS_TOKEN=tu-upstash-token
+
+# Secreto para comunicación con agente local
+LOCAL_AGENT_SECRET=genera-un-secreto-seguro
+
+# URL del agente local
+LOCAL_AGENT_URL=http://localhost:3001

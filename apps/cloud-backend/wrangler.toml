@@ -1,0 +1,18 @@
+name = "whatsapp-ai-agents"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+# Variables de entorno (configurar en Cloudflare Dashboard para producción)
+ADMIN_PHONE = "+34600000000"
+
+# Secretos a configurar con: wrangler secret put <NAME>
+# - WHATSAPP_TOKEN
+# - WHATSAPP_VERIFY_TOKEN
+# - WHATSAPP_PHONE_ID
+# - GROQ_API_KEY
+# - TURSO_URL
+# - TURSO_AUTH_TOKEN
+# - UPSTASH_REDIS_URL
+# - UPSTASH_REDIS_TOKEN
+# - LOCAL_AGENT_SECRET

@@ -1,0 +1,22 @@
+{
+  "name": "@whatsapp-agents/cloud-backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "dependencies": {
+    "@whatsapp-agents/shared": "*",
+    "@libsql/client": "^0.5.0",
+    "@upstash/redis": "^1.28.0",
+    "groq-sdk": "^0.3.0",
+    "hono": "^4.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240117.0",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.24.0"
+  }
+}
