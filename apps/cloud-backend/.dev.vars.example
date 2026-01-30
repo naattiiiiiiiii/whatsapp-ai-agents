@@ -1,6 +1,14 @@
 # Variables de desarrollo para Cloudflare Workers
 # Copia este archivo y rellena con TUS credenciales
 
+# ============ TELEGRAM (más fácil, funciona al instante) ============
+# 1. Habla con @BotFather en Telegram
+# 2. Envía /newbot y sigue las instrucciones
+# 3. Copia el token que te da
+TELEGRAM_BOT_TOKEN=tu-bot-token-de-botfather
+TELEGRAM_ADMIN_CHAT_ID=tu-chat-id
+
+# ============ WHATSAPP (requiere cuenta Meta Business) ============
 # WhatsApp Cloud API (developers.facebook.com)
 WHATSAPP_TOKEN=tu-whatsapp-access-token
 WHATSAPP_VERIFY_TOKEN=tu-verify-token

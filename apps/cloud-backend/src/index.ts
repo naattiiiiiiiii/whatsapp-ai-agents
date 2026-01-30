@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 import { webhookHandler, webhookVerify } from './webhook/handler';
+import { telegramWebhookHandler } from './webhook/telegram-handler';
+import { setTelegramWebhook } from './webhook/telegram';
 import { createDb } from './db/turso';
 import { createCache } from './db/redis';
 
@@ -8,6 +10,10 @@ export interface Env {
   WHATSAPP_TOKEN: string;
   WHATSAPP_VERIFY_TOKEN: string;
   WHATSAPP_PHONE_ID: string;
+
+  // Telegram
+  TELEGRAM_BOT_TOKEN: string;
+  TELEGRAM_ADMIN_CHAT_ID: string;
 
   // Admin
   ADMIN_PHONE: string;
@@ -38,6 +44,26 @@ app.get('/webhook', webhookVerify);
 
 // WhatsApp Webhook - Recepción de mensajes
 app.post('/webhook', webhookHandler);
+
+// Telegram Webhook
+app.post('/telegram', telegramWebhookHandler);
+
+// Setup Telegram webhook (llamar una vez para configurar)
+app.get('/telegram/setup', async (c) => {
+  const secret = c.req.query('secret');
+  if (secret !== c.env.LOCAL_AGENT_SECRET) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  const workerUrl = new URL(c.req.url).origin;
+  const success = await setTelegramWebhook(c.env, workerUrl);
+
+  if (success) {
+    return c.json({ status: 'ok', message: 'Telegram webhook configured', url: `${workerUrl}/telegram` });
+  } else {
+    return c.json({ status: 'error', message: 'Failed to set webhook' }, 500);
+  }
+});
 
 // Endpoint para el agente local (polling)
 app.get('/mcp/pending', async (c) => {

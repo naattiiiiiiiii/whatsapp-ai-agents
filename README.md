@@ -31,6 +31,15 @@ Envía mensajes a WhatsApp y controla tu ordenador con IA:
                      └─────────────────────────────────────┘
 ```
 
+## Plataformas soportadas
+
+| Plataforma | Dificultad | Tiempo setup |
+|------------|------------|--------------|
+| **Telegram** | ⭐ Fácil | 2 minutos |
+| **WhatsApp** | ⭐⭐⭐ Requiere Meta Business | 30+ minutos |
+
+**Recomendación**: Empieza con Telegram para probar, luego añade WhatsApp.
+
 ## Stack Tecnológico (Todo Gratis)
 
 | Componente | Tecnología | Límite Gratis |
@@ -62,9 +71,26 @@ cd whatsapp-ai-agents
 
 ### 3. Crear cuentas gratuitas
 
+#### Opción A: Telegram (Recomendado - 2 minutos)
+
+1. Abre Telegram y busca **@BotFather**
+2. Envía `/newbot`
+3. Nombre del bot: `AI Agents`
+4. Username: `tunombre_ai_bot`
+5. **¡Listo! Copia el token que te da**
+
+Para obtener tu Chat ID (admin):
+1. Busca **@userinfobot** en Telegram
+2. Envía `/start`
+3. Copia tu "Id"
+
+#### Opción B: WhatsApp (Más complejo)
+
 1. **WhatsApp Cloud API**: [developers.facebook.com](https://developers.facebook.com)
    - Crear App Business → Añadir WhatsApp
    - Obtener `WHATSAPP_TOKEN` y `WHATSAPP_PHONE_ID`
+
+#### Servicios adicionales (ambas opciones)
 
 2. **Groq API**: [console.groq.com](https://console.groq.com)
    - Crear cuenta → Generar API Key
@@ -97,9 +123,17 @@ npm install -g wrangler
 wrangler login
 
 # Configurar secretos en Cloudflare
+
+# Para Telegram:
+wrangler secret put TELEGRAM_BOT_TOKEN
+wrangler secret put TELEGRAM_ADMIN_CHAT_ID
+
+# Para WhatsApp (opcional):
 wrangler secret put WHATSAPP_TOKEN
 wrangler secret put WHATSAPP_VERIFY_TOKEN
 wrangler secret put WHATSAPP_PHONE_ID
+
+# Comunes:
 wrangler secret put GROQ_API_KEY
 wrangler secret put TURSO_URL
 wrangler secret put TURSO_AUTH_TOKEN
@@ -112,8 +146,16 @@ cd apps/cloud-backend
 npm run deploy
 ```
 
-### 6. Configurar Webhook en Meta
+### 6. Configurar Webhook
 
+#### Para Telegram (automático):
+Después de desplegar, visita:
+```
+https://tu-worker.workers.dev/telegram/setup?secret=TU_LOCAL_AGENT_SECRET
+```
+¡Listo! El webhook se configura automáticamente.
+
+#### Para WhatsApp:
 1. Ve a tu app en [developers.facebook.com](https://developers.facebook.com)
 2. WhatsApp → Configuración → Webhook
 3. URL: `https://tu-worker.workers.dev/webhook`
