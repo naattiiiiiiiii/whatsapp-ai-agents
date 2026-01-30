@@ -1,8 +1,6 @@
-import puppeteer, { type Browser, type Page } from 'puppeteer';
+// Agente Web simplificado - usa fetch en lugar de Puppeteer para mayor compatibilidad
 
 export class WebAgent {
-  private browser: Browser | null = null;
-
   async execute(tool: string, args: Record<string, unknown>): Promise<unknown> {
     switch (tool) {
       case 'web_search':
@@ -10,236 +8,203 @@ export class WebAgent {
       case 'web_scrape':
         return this.scrape(args.url as string, args.selector as string);
       case 'web_screenshot':
-        return this.screenshot(args.url as string, args.fullPage as boolean);
+        return { error: 'Screenshots require browser - not available in lite mode' };
       case 'web_fill_form':
-        return this.fillForm(args.url as string, args.fields as Record<string, string>);
+        return { error: 'Form filling requires browser - not available in lite mode' };
       case 'web_monitor':
-        return this.monitor(args.url as string, args.selector as string, args.interval as number);
+        return this.monitor(args.url as string);
       default:
         throw new Error(`Unknown web tool: ${tool}`);
     }
   }
 
-  private async getBrowser(): Promise<Browser> {
-    if (!this.browser) {
-      this.browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      });
-    }
-    return this.browser;
-  }
-
   async close(): Promise<void> {
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
-    }
+    // No browser to close in lite mode
   }
 
   private async search(query: string, numResults?: number): Promise<object> {
-    const browser = await this.getBrowser();
-    const page = await browser.newPage();
-
     try {
-      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
-
-      // Usar DuckDuckGo para evitar CAPTCHAs de Google
+      // Usar DuckDuckGo Instant Answer API
       const encodedQuery = encodeURIComponent(query);
-      await page.goto(`https://html.duckduckgo.com/html/?q=${encodedQuery}`, {
-        waitUntil: 'domcontentloaded',
-        timeout: 15000,
-      });
+      const response = await fetch(
+        `https://api.duckduckgo.com/?q=${encodedQuery}&format=json&no_html=1`,
+        {
+          headers: {
+            'User-Agent': 'WhatsAppAIAgents/1.0',
+          },
+        }
+      );
 
-      // Extraer resultados
-      const results = await page.evaluate((limit) => {
-        const items: Array<{ title: string; url: string; snippet: string }> = [];
-        const elements = document.querySelectorAll('.result');
+      if (!response.ok) {
+        throw new Error(`Search failed: ${response.status}`);
+      }
 
-        elements.forEach((el, index) => {
-          if (index >= limit) return;
+      const data = await response.json() as any;
 
-          const titleEl = el.querySelector('.result__title a');
-          const snippetEl = el.querySelector('.result__snippet');
+      const results: Array<{ title: string; url: string; snippet: string }> = [];
 
-          if (titleEl) {
-            items.push({
-              title: titleEl.textContent?.trim() || '',
-              url: titleEl.getAttribute('href') || '',
-              snippet: snippetEl?.textContent?.trim() || '',
+      // Abstract (respuesta directa)
+      if (data.Abstract) {
+        results.push({
+          title: data.Heading || 'Result',
+          url: data.AbstractURL || '',
+          snippet: data.Abstract,
+        });
+      }
+
+      // Related topics
+      if (data.RelatedTopics) {
+        for (const topic of data.RelatedTopics.slice(0, (numResults || 5) - results.length)) {
+          if (topic.Text && topic.FirstURL) {
+            results.push({
+              title: topic.Text.split(' - ')[0] || 'Related',
+              url: topic.FirstURL,
+              snippet: topic.Text,
             });
           }
-        });
+        }
+      }
 
-        return items;
-      }, numResults || 5);
+      // Si no hay resultados, buscar con scraping básico
+      if (results.length === 0) {
+        return this.searchFallback(query, numResults);
+      }
+
+      return {
+        query,
+        results: results.slice(0, numResults || 5),
+        totalResults: results.length,
+      };
+    } catch (error) {
+      console.error('Search error:', error);
+      return this.searchFallback(query, numResults);
+    }
+  }
+
+  private async searchFallback(query: string, numResults?: number): Promise<object> {
+    try {
+      const encodedQuery = encodeURIComponent(query);
+      const response = await fetch(
+        `https://html.duckduckgo.com/html/?q=${encodedQuery}`,
+        {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+          },
+        }
+      );
+
+      const html = await response.text();
+      const results: Array<{ title: string; url: string; snippet: string }> = [];
+
+      // Extraer resultados con regex simple
+      const resultRegex = /<a class="result__a"[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/g;
+      const snippetRegex = /<a class="result__snippet"[^>]*>([^<]*)<\/a>/g;
+
+      let match;
+      const urls: string[] = [];
+      const titles: string[] = [];
+      const snippets: string[] = [];
+
+      while ((match = resultRegex.exec(html)) !== null) {
+        urls.push(match[1]);
+        titles.push(match[2]);
+      }
+
+      while ((match = snippetRegex.exec(html)) !== null) {
+        snippets.push(match[1]);
+      }
+
+      for (let i = 0; i < Math.min(urls.length, numResults || 5); i++) {
+        results.push({
+          title: titles[i] || 'Result',
+          url: urls[i] || '',
+          snippet: snippets[i] || '',
+        });
+      }
 
       return {
         query,
         results,
         totalResults: results.length,
+        note: 'Results from fallback search',
       };
-    } finally {
-      await page.close();
+    } catch (error) {
+      return {
+        query,
+        results: [],
+        totalResults: 0,
+        error: `Search failed: ${error}`,
+      };
     }
   }
 
   private async scrape(url: string, selector?: string): Promise<object> {
-    const browser = await this.getBrowser();
-    const page = await browser.newPage();
-
     try {
-      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+      });
 
-      let content: string;
-      let title: string;
-
-      if (selector) {
-        await page.waitForSelector(selector, { timeout: 5000 }).catch(() => {});
-        content = await page.$eval(selector, el => el.textContent || '').catch(() => '');
-      } else {
-        // Extraer contenido principal
-        content = await page.evaluate(() => {
-          // Intentar encontrar el contenido principal
-          const selectors = ['article', 'main', '.content', '#content', '.post', 'body'];
-          for (const sel of selectors) {
-            const el = document.querySelector(sel);
-            if (el && el.textContent && el.textContent.trim().length > 100) {
-              return el.textContent.trim();
-            }
-          }
-          return document.body.textContent?.trim() || '';
-        });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch: ${response.status}`);
       }
 
-      title = await page.title();
+      const html = await response.text();
 
-      // Limpiar y limitar contenido
-      content = content
+      // Extraer título
+      const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+      const title = titleMatch ? titleMatch[1].trim() : 'No title';
+
+      // Extraer contenido de texto (remover scripts, styles, tags)
+      let content = html
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
         .replace(/\s+/g, ' ')
-        .trim()
-        .substring(0, 5000);
+        .trim();
+
+      // Limitar contenido
+      content = content.substring(0, 5000);
 
       return {
         url,
         title,
         content,
         truncated: content.length >= 5000,
+        note: 'Basic scraping (no JavaScript rendering)',
       };
-    } finally {
-      await page.close();
+    } catch (error) {
+      return {
+        url,
+        error: `Scrape failed: ${error}`,
+      };
     }
   }
 
-  private async screenshot(url: string, fullPage?: boolean): Promise<object> {
-    const browser = await this.getBrowser();
-    const page = await browser.newPage();
-
+  private async monitor(url: string): Promise<object> {
     try {
-      await page.setViewport({ width: 1280, height: 800 });
-      await page.goto(url, { waitUntil: 'networkidle2', timeout: 20000 });
-
-      const screenshot = await page.screenshot({
-        encoding: 'base64',
-        fullPage: fullPage || false,
-        type: 'jpeg',
-        quality: 80,
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        },
       });
 
-      const title = await page.title();
+      const html = await response.text();
+      const hash = await this.hashContent(html);
 
       return {
         url,
-        title,
-        screenshot: `data:image/jpeg;base64,${screenshot}`,
-        width: 1280,
-        height: fullPage ? 'variable' : 800,
-      };
-    } finally {
-      await page.close();
-    }
-  }
-
-  private async fillForm(url: string, fields: Record<string, string>): Promise<object> {
-    const browser = await this.getBrowser();
-    const page = await browser.newPage();
-
-    try {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
-
-      const filled: string[] = [];
-      const notFound: string[] = [];
-
-      for (const [selector, value] of Object.entries(fields)) {
-        try {
-          // Intentar varios selectores
-          const selectors = [
-            selector,
-            `[name="${selector}"]`,
-            `#${selector}`,
-            `[placeholder*="${selector}" i]`,
-          ];
-
-          let found = false;
-          for (const sel of selectors) {
-            const element = await page.$(sel);
-            if (element) {
-              await element.click({ clickCount: 3 }); // Seleccionar todo
-              await page.keyboard.type(value);
-              filled.push(selector);
-              found = true;
-              break;
-            }
-          }
-
-          if (!found) {
-            notFound.push(selector);
-          }
-        } catch {
-          notFound.push(selector);
-        }
-      }
-
-      return {
-        url,
-        filled,
-        notFound,
-        success: filled.length > 0,
-      };
-    } finally {
-      await page.close();
-    }
-  }
-
-  private async monitor(url: string, selector?: string, interval?: number): Promise<object> {
-    const browser = await this.getBrowser();
-    const page = await browser.newPage();
-
-    try {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
-
-      let content: string;
-
-      if (selector) {
-        content = await page.$eval(selector, el => el.textContent || '').catch(() => '');
-      } else {
-        content = await page.evaluate(() => document.body.textContent?.trim() || '');
-      }
-
-      // Crear hash del contenido para detectar cambios
-      const hash = await this.hashContent(content);
-
-      return {
-        url,
-        selector: selector || 'body',
         contentHash: hash,
-        contentPreview: content.substring(0, 200),
-        monitoringInterval: interval || 60,
-        message: 'Monitoring configured. Changes will be notified.',
+        contentPreview: html.substring(0, 200).replace(/<[^>]+>/g, ''),
+        message: 'Page hash captured. Compare later to detect changes.',
       };
-    } finally {
-      await page.close();
+    } catch (error) {
+      return {
+        url,
+        error: `Monitor failed: ${error}`,
+      };
     }
   }
 
