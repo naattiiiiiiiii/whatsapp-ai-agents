@@ -145,28 +145,14 @@ export async function telegramWebhookHandler(c: Context<{ Bindings: Env }>) {
         timestamp: Date.now(),
       });
 
-      // Enviar mensaje de espera
+      // Responder inmediatamente (no esperar)
       await sendTelegramMessage(
         c.env,
         chatId,
-        `${routingResult.agentEmoji} ${routingResult.agentName} está procesando tu solicitud...`
+        `${routingResult.agentEmoji} ${routingResult.agentName} procesando...`
       );
 
-      // Esperar respuesta (con timeout)
-      const response = await waitForResponse(cache, requestId, 30000);
-
-      if (response) {
-        const finalResponse = await formatResponse(c.env, routingResult, response);
-        await sendTelegramMessage(c.env, chatId, finalResponse);
-        await logMessage(db, user.id, 'out', finalResponse, routingResult.agent, routingResult.tool);
-        await addToConversation(cache, chatId, `Asistente: ${finalResponse}`);
-      } else {
-        await sendTelegramMessage(
-          c.env,
-          chatId,
-          '⏱️ La operación está tardando más de lo esperado. Te notificaré cuando esté lista.'
-        );
-      }
+      // El agente local enviará la respuesta cuando termine
     } else {
       // Respuesta directa (no requiere agente local)
       await sendTelegramMessage(c.env, chatId, routingResult.response);

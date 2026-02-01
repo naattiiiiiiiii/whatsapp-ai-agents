@@ -86,21 +86,37 @@ app.post('/mcp/response', async (c) => {
   }
 
   const body = await c.req.json();
-  const { requestId, result, error } = body;
+  const { requestId, result, error, chatId, platform } = body;
 
   const cache = createCache(c.env);
 
-  // Guardar respuesta
-  await cache.set(`mcp:response:${requestId}`, JSON.stringify({ result, error }), { ex: 300 });
-
-  // Remover de pendientes
+  // Remover de pendientes y obtener info del request original
   const pending = await cache.lrange('mcp:pending', 0, -1);
+  let originalRequest: any = null;
   for (const item of pending) {
     const parsed = JSON.parse(item);
     if (parsed.id === requestId) {
+      originalRequest = parsed;
       await cache.lrem('mcp:pending', 1, item);
       break;
     }
+  }
+
+  // Enviar respuesta al usuario
+  if (originalRequest && originalRequest.platform === 'telegram') {
+    const { sendTelegramMessage } = await import('./webhook/telegram');
+
+    let responseText: string;
+    if (error) {
+      responseText = `❌ Error: ${error}`;
+    } else {
+      // Formatear resultado
+      responseText = typeof result === 'string'
+        ? result
+        : JSON.stringify(result, null, 2).substring(0, 4000);
+    }
+
+    await sendTelegramMessage(c.env, originalRequest.phone, responseText);
   }
 
   return c.json({ success: true });
