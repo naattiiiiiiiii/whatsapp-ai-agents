@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  whatsapp-ai-agents:
+    build: .
+    container_name: whatsapp-ai-agents
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      # Monta tu carpeta de archivos (cambia la ruta)
+      - ~/Documents:/data/Documents:ro
+      - ~/Desktop:/data/Desktop:ro
+      - ~/Downloads:/data/Downloads:ro
+      # Datos persistentes del sistema
+      - whatsapp-agents-data:/data/.whatsapp-agents
+    environment:
+      - LOCAL_AGENT_SECRET=${LOCAL_AGENT_SECRET}
+      - CLOUD_BACKEND_URL=${CLOUD_BACKEND_URL}
+      - PORT=3001
+      - FILES_BASE_DIR=/data
+      - DATA_DIR=/data/.whatsapp-agents
+      - POLLING_INTERVAL=2
+      # Google OAuth (opcional, para Gmail real)
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GOOGLE_REFRESH_TOKEN=${GOOGLE_REFRESH_TOKEN:-}
+
+volumes:
+  whatsapp-agents-data:
